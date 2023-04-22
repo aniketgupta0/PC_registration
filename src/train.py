@@ -6,10 +6,15 @@ from data_loaders import get_dataloader
 from models import get_model
 from trainer import Trainer
 from utils.misc import load_config
+from torch.distributed import init_process_group
+import os
+import torch
+from utils.comm import *
+
 
 def main(opt):
-    train_loader = get_dataloader(cfg, phase='train', num_workers=opt.num_workers)
-    val_loader = get_dataloader(cfg, phase='val', num_workers=opt.num_workers)
+    train_loader = get_dataloader(cfg, phase='train', num_workers=opt.num_workers, num_gpus=opt.num_gpus)
+    val_loader = get_dataloader(cfg, phase='val', num_workers=opt.num_workers, num_gpus=opt.num_gpus)
 
     Model = get_model(cfg.model)
     model = Model(cfg)
@@ -21,7 +26,7 @@ def main(opt):
     print(f"Total trainable model params: {trainable_params}")
 
     trainer = Trainer(opt, niter=cfg.niter, grad_clip=cfg.grad_clip)
-    trainer.fit(model, train_loader, val_loader)
+    trainer.fit(model, train_loader, val_loader, opt.num_gpus, opt.local_rank)
 
 
 if __name__ == '__main__':
@@ -36,8 +41,19 @@ if __name__ == '__main__':
     parser.add_argument('--num_workers', type=int, default=4,help='Number of worker threads for dataloader')
     parser.add_argument('--resume', type=str, help='Checkpoint to resume from')
     parser.add_argument('--nb_sanity_val_steps', type=int, default=2, help='Number of validation sanity steps to run before training.')
+    parser.add_argument('--local_rank', type=int, default=0, help='local rank for distributed data parallel.')
 
     opt = parser.parse_args()
+    
+    # ddp set up
+    opt.num_gpus = int(os.environ['WORLD_SIZE']) if "WORLD_SIZE" in os.environ else 1
+    # opt.local_rank = os.environ['LOCAL_RANK']
+    if opt.num_gpus > 1:
+        # init ddp
+        torch.cuda.set_device(opt.local_rank)
+        init_process_group(backend="nccl", init_method='env://')
+        synchronize()
+    print('init ddp done')
 
     # Override config if --resume is passed
     if opt.config is None:

@@ -9,7 +9,7 @@ from data_loaders.mkitti import KittiDataset
 import torchvision
 
 
-def get_dataloader(cfg, phase, num_workers=0):
+def get_dataloader(cfg, phase, num_workers=0, num_gpus=1):
 
     assert phase in ['train', 'val', 'test']
 
@@ -52,30 +52,33 @@ def get_dataloader(cfg, phase, num_workers=0):
     batch_size = cfg[f'{phase}_batch_size']
     # shuffle = phase == 'train'
     shuffle = False
-
+    print(cfg.model)
     if cfg.model in ["qk_regtr.RegTR", "qk_regtr_old.RegTR"]:
         data_loader = torch.utils.data.DataLoader(
             dataset,
             batch_size=batch_size,
-            shuffle=shuffle,
+            shuffle=shuffle if num_gpus == 1 else False,
             num_workers=num_workers,
             collate_fn=collate_pair,
+            sampler=torch.utils.data.distributed.DistributedSampler(dataset) if num_gpus > 1 else None,
         )
     elif cfg.model in ["qk_revvit.RegTR", "qk_revvit_2.RegTR", "qk_ce.RegTR"]:
         data_loader = torch.utils.data.DataLoader(
             dataset,
             batch_size=batch_size,
-            shuffle=shuffle,
+            shuffle=shuffle if num_gpus == 1 else False,
             num_workers=num_workers,
             collate_fn=collate_tensors,
+            sampler=torch.utils.data.distributed.DistributedSampler(dataset) if num_gpus > 1 else None,
         )
     elif cfg.model in ["qk_mink.RegTR", "qk_mink_2.RegTR", "qk_mink_3.RegTR"]:
         data_loader = torch.utils.data.DataLoader(
             dataset,
             batch_size=batch_size,
-            shuffle=shuffle,
+            shuffle=shuffle if num_gpus == 1 else False,
             num_workers=num_workers,
             collate_fn=collate_sparse_tensors,
+            sampler=torch.utils.data.distributed.DistributedSampler(dataset) if num_gpus > 1 else None,
         )
     
     return data_loader
