@@ -20,6 +20,14 @@ def main(opt):
     print(f"Total model params: {total_params}")
     print(f"Total trainable model params: {trainable_params}")
 
+     # Save config to log
+    config_out_fname = os.path.join(opt.log_path, 'config.yaml')
+    with open(opt.config, 'r') as in_fid, open(config_out_fname, 'w') as out_fid:
+        out_fid.write(f'# Original file name: {opt.config}\n')
+        out_fid.write(f'# Total parameters: {total_params}\n')
+        out_fid.write(f'# Total trainable parameters: {trainable_params}\n')
+        out_fid.write(in_fid.read())
+
     trainer = Trainer(opt, niter=cfg.niter, grad_clip=cfg.grad_clip)
     trainer.fit(model, train_loader, val_loader)
 
@@ -62,11 +70,11 @@ if __name__ == '__main__':
         opt.name = cfg.expt_name
     logger, opt.log_path = prepare_logger(opt)
 
-    # Save config to log
-    config_out_fname = os.path.join(opt.log_path, 'config.yaml')
-    with open(opt.config, 'r') as in_fid, open(config_out_fname, 'w') as out_fid:
-        out_fid.write(f'# Original file name: {opt.config}\n')
-        out_fid.write(in_fid.read())
+    # # Save config to log
+    # config_out_fname = os.path.join(opt.log_path, 'config.yaml')
+    # with open(opt.config, 'r') as in_fid, open(config_out_fname, 'w') as out_fid:
+    #     out_fid.write(f'# Original file name: {opt.config}\n')
+    #     out_fid.write(in_fid.read())
     
     # Run the main function
     main(opt)

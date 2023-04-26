@@ -15,6 +15,7 @@ from models.transformer.transformers import \
     TransformerCrossEncoderLayer, TransformerCrossEncoder
 from utils.se3_torch import compute_rigid_transform, se3_transform_list, se3_inv, compute_rigid_transform_with_sinkhorn
 from utils.seq_manipulation import split_src_tgt, pad_sequence, unpad_sequences
+# from utils.pointcloud import compute_overlap
 # from utils.viz import visualize_registration
 _TIMEIT = False
 
@@ -226,7 +227,7 @@ class RegTR(GenericRegModel):
 
         # Softmax Correlation
         tic = time.time()
-        pose_sfc, attn_list = self.softmax_correlation(src_feats_cond_unpad, tgt_feats_cond_unpad,
+        pose_sfc, attn_list, overlap_prob_list, ind_list = self.softmax_correlation(src_feats_cond_unpad, tgt_feats_cond_unpad,
                                      src_xyz_c, tgt_xyz_c)
         
         if self.time_verbose:
@@ -255,8 +256,11 @@ class RegTR(GenericRegModel):
             'src_kp': src_xyz_c,
             'tgt_kp': tgt_xyz_c,
 
-            'src_feat_un': src_feats_un,
-            'tgt_feat_un': tgt_feats_un,
+            # 'src_feat_un': src_feats_un,
+            # 'tgt_feat_un': tgt_feats_un,
+
+            'overlap_prob_list': overlap_prob_list,
+            'ind_list': ind_list,
         }
         return outputs
 
@@ -265,46 +269,49 @@ class RegTR(GenericRegModel):
         losses = {}
         kpconv_meta = batch['kpconv_meta']
         pose_gt = batch['pose']
-        p = len(kpconv_meta['stack_lengths']) - 1  # coarsest level
+        p = len(kpconv_meta['stack_lengths']) - 1 
 
-        # print(f"Datatype of pred['src_kp']: {pred['src_kp'][0].dtype}")
-        # print(f"Datatype of pred['src_kp']: {pred['src_kp'][0].dtype}")
-        # print(f"Datatype of pose_gt: {pose_gt.dtype}")
-        # Feature criterion
+        # # Overlap Loss
+        overlap_loss = 0
+
+        # batch['overlap_pyr'] = compute_overlaps(batch)
+        # src_overlap_p, tgt_overlap_p = \
+        #     split_src_tgt(batch['overlap_pyr'][f'pyr_{p}'], kpconv_meta['stack_lengths'][p])
+
+        # for i in range(len(pred['overlap_prob_list'])):
+        #     overlap_pred = pred['overlap_prob_list'][i]
+        #     if src_overlap_p[i].shape[0]>tgt_overlap_p[i].shape[0]:
+        #         overlap_gt = torch.gather(src_overlap_p[i], 0, pred['ind_list'][i])
+        #     else:
+        #         overlap_gt = torch.gather(tgt_overlap_p[i], 0, pred['ind_list'][i])
+
+        #     overlap_loss += self.overlap_criterion(overlap_pred, overlap_gt)
+
+        # Feature Loss
         for i in self.cfg.feature_loss_on:
             feature_loss = self.feature_criterion(
                 [s[i] for s in pred['src_feat']],
                 [t[i] for t in pred['tgt_feat']],
                 se3_transform_list(pose_gt, pred['src_kp']), pred['tgt_kp'],
             )
-        # losses['feature_un'] = self.feature_criterion_un(
-        #     pred['src_feat_un'],
-        #     pred['tgt_feat_un'],
-        #     se3_transform_list(pose_gt, pred['src_kp']), pred['tgt_kp'],
-        # )
 
+        # Tranformation Loss
         pc_tf_gt = se3_transform_list(pose_gt, pred['src_kp'])
         pc_tf_pred = se3_transform_list(pred['pose'], pred['src_kp'])
 
-        # print("Loss =====")
-        # print(pose_gt.shape)
-        # print(pred['pose'].shape)
-        # print(pred['src_kp'][0].shape)
-        # print(pc_tf_gt[0].shape)
-        # print(pc_tf_pred[0].shape)
         T_loss = 0
         for i in range(len(pc_tf_gt)):
             T_loss += torch.mean(torch.abs(pc_tf_gt[i] - pc_tf_pred[i])).requires_grad_()
-        # losses['total'] = torch.sum(
-        #     torch.stack([(losses[k] * self.weight_dict[k]) for k in losses]))
-
+        
         if self.verbose:
             print(f"Feature loss: {feature_loss}")
+            print(f"Overlap loss: {overlap_loss}")
             print(f"T loss: {T_loss}")
 
         # losses['feature'] = feature_loss
         # losses['T'] = T_loss
-        # losses['total'] = T_loss + 0.1 * feature_loss
+        # losses['overlap'] = overlap_loss
+        # losses['total'] = T_loss + 0.1*feature_loss + 0.1*overlap_loss
         losses['total'] = T_loss
         return losses
 
@@ -323,9 +330,16 @@ class RegTR(GenericRegModel):
         B = len(src_feats)
         pose_list = []
         attn_list = []
+
+        # Variables to calculate overlap loss
+        # src_corr_list = []
+        # tgt_corr_list = []
+        overlap_prob_list = []
+        ind_list = []
+
         for i in range(B):
             _, N, D = src_feats[i].shape
-            _, M, D = tgt_feats[i].shape 
+            _, M, D = tgt_feats[i].shape
 
             # Correlation = [1, N, M]
             correlation = torch.matmul(src_feats[i], tgt_feats[i].permute(0, 2, 1)) / (D**0.5)
@@ -335,48 +349,50 @@ class RegTR(GenericRegModel):
                 attn_list.append(attn_N)
 
                 val, ind = torch.max(attn_N, dim=1)
-                # print(ind.shape)
-                # print(src_xyz[i].shape)
-                # print(val.shape)
-                # print(src_xyz[i][:-1].shape)
-                # print(f"attn_N shape is: {attn_N.shape}")
-                # raise ValueError
+                try:
+                    assert val.min() >= 0 and val.max() <= 1
+                except:
+                    print(val)
+                    print(correlation)
+                    print(src_feats[i])
+                    print(tgt_feats[i])
+                    raise AssertionError
+
                 src_pts = torch.gather(src_xyz[i], 0, ind.permute(1,0).expand(-1,3))  # [N, 3] -> [M, 3]
                 attention = torch.gather(attn_N, 1, ind.unsqueeze(-1).expand(-1,-1,M))
-                # print("src_pts shape: ", src_pts.shape)
-                # print("tgt_pts.shape", tgt_xyz[i].shape)
+
                 if self.cfg.use_sinkhorn:
                     T = compute_rigid_transform_with_sinkhorn(src_pts, tgt_xyz[i], attention, self.cfg.slack, self.cfg.sinkhorn_itr)
                 else:
                     T = compute_rigid_transform(src_pts, tgt_xyz[i], weights=val.permute(1,0).squeeze())
+
+                # src_corr_list.append(src_pts)
+                # tgt_corr_list.append(tgt_xyz[i])
+                
+                overlap_prob_list.append(val.squeeze())
+                ind_list.append(ind.squeeze())
+
             else:
                 attn_M = torch.nn.functional.softmax(correlation, dim=-1)
                 attn_list.append(attn_M)
 
                 val, ind = torch.max(attn_M, dim=2)
-                # print(ind.shape)
-                # print(tgt_xyz[i].shape)
-                # print(val.shape)
-                # print(tgt_xyz[i][:-1].shape)
-                # print(f"attn_M shape is: {attn_M.shape}")
-                # print(f"ind shape is:{ind.shape}")
-                # print(f"tgt_xyz shape is: {tgt_xyz[i].shape}")
-                # raise ValueError
+
                 tgt_pts = torch.gather(tgt_xyz[i], 0, ind.permute(1,0).expand(-1,3))  # [M, 3] -> [N, 3]
                 attention = torch.gather(attn_M, 2, ind.unsqueeze(0).expand(-1,N,-1))
 
-                # print(f"attention shape is: {attention.shape}")
-                # print("src_pts shape: ", src_xyz[i].shape)
-                # print("tgt_pts.shape", tgt_pts.shape)
-                # raise ValueError
                 if self.cfg.use_sinkhorn:
                     T = compute_rigid_transform_with_sinkhorn(src_xyz[i], tgt_pts, attention, self.cfg.slack, self.cfg.sinkhorn_itr)
                 else:
                     T = compute_rigid_transform(src_xyz[i], tgt_pts, weights=val.permute(1,0).squeeze())
 
+                # src_corr_list.append(src_xyz[i])
+                # tgt_corr_list.append(tgt_pts)
+                overlap_prob_list.append(val.squeeze())
+                ind_list.append(ind.squeeze())
 
             pose_list.append(T)
 
         pose_sfc = torch.stack(pose_list, dim=0)
 
-        return pose_sfc, attn_list
+        return pose_sfc, attn_list, overlap_prob_list, ind_list
