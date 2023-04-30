@@ -82,14 +82,14 @@ class RegTR(GenericRegModel):
         self.overlap_criterion = nn.BCEWithLogitsLoss()
         if self.cfg.feature_loss_type == 'infonce':
             self.feature_criterion = InfoNCELossFull(cfg.d_embed, r_p=cfg.r_p, r_n=cfg.r_n)
-            self.feature_criterion_un = InfoNCELossFull(cfg.d_embed, r_p=cfg.r_p, r_n=cfg.r_n)
+            # self.feature_criterion_un = InfoNCELossFull(cfg.d_embed, r_p=cfg.r_p, r_n=cfg.r_n)
         elif self.cfg.feature_loss_type == 'circle':
             self.feature_criterion = CircleLossFull(dist_type='euclidean', r_p=cfg.r_p, r_n=cfg.r_n)
-            self.feature_criterion_un = self.feature_criterion
+            # self.feature_criterion_un = self.feature_criterion
         else:
             raise NotImplementedError
 
-        self.corr_criterion = CorrCriterion(metric='mae')
+        # self.corr_criterion = CorrCriterion(metric='mae')
 
         self.weight_dict = {}
         for k in ['overlap', 'feature', 'corr']:
@@ -262,7 +262,10 @@ class RegTR(GenericRegModel):
             'overlap_prob_list': overlap_prob_list,
             'ind_list': ind_list,
         }
-        return outputs
+
+        losses = self.compute_loss(outputs, batch)
+        
+        return outputs, losses
 
     def compute_loss(self, pred, batch):
 
@@ -311,7 +314,7 @@ class RegTR(GenericRegModel):
         losses['feature'] = feature_loss
         losses['T'] = T_loss
         # losses['overlap'] = overlap_loss
-        losses['total'] = T_loss + 0.1*feature_loss #+ 0.1*overlap_loss
+        losses['total'] = 3 * T_loss + 0.1*feature_loss #+ 0.0*overlap_loss
         # losses['total'] = T_loss
         return losses
 

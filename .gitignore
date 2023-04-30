@@ -1,0 +1,10 @@
+logs/
+.vscode/
+/.vscode/
+/__pycache__
+/*/__pycache__
+/*/*/__pycache__
+/*/*/*/__pycache__
+/*/*/*/*/__pycache__
+data/
+logdev/

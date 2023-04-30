@@ -103,7 +103,9 @@ class Trainer:
                 try:
                     batch = all_to_device(batch, device)
                     if num_gpus > 1:
-                        train_output, losses = model.module.training_step(batch, global_step)
+                        # train_output, losses = model.module.training_step(batch, global_step)
+                        train_output, losses = model(batch)
+
                         if model.module.optimizer_handled_by_trainer:
                             if model.module.optimizer is not None:
                                 model.module.optimizer.zero_grad()
@@ -123,8 +125,8 @@ class Trainer:
                                 model.module.optimizer.step()
                                 model.module.scheduler.step()
                     else:
-                        train_output, losses = model.training_step(batch, global_step)
-
+                        # train_output, losses = model.training_step(batch, global_step)
+                        train_output, losses = model(batch)
                         if model.optimizer_handled_by_trainer:
                             if model.optimizer is not None:
                                 model.optimizer.zero_grad()

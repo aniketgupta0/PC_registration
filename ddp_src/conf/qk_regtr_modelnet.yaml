@@ -24,11 +24,12 @@ train_options:
 
 solver:
     optimizer: AdamW
-    base_lr: 0.0001
+    base_lr: 0.00028284
     weight_decay: 0.0001
     grad_clip: 0.1
     scheduler: 'step'
-    scheduler_param: [127800, 0.5]  # Decay by 0.5 every 100 epochs
+    # scheduler_param: [127800, 0.5]  # Decay by 0.5 every 100 epochs
+    scheduler_param: [15975, 0.5]  # Decay by 0.5 every 100 epochs
 
 
 # Use a shallower backbone to maintain resolution

@@ -80,8 +80,8 @@ class GenericRegModel(GenericModel, ABC):
         self.loss_stats_meter.clear()
 
     def validation_step(self, batch, batch_idx):
-        pred = self.forward(batch)
-        losses = self.compute_loss(pred, batch)
+        pred, losses = self.forward(batch)
+        # losses = self.compute_loss(pred, batch)
         metrics = self._compute_metrics(pred, batch)
 
         # visualize_registration(batch, pred, metrics=metrics, iter_idx=5, b=2)
@@ -129,8 +129,8 @@ class GenericRegModel(GenericModel, ABC):
 
     def test_step(self, batch, batch_idx):
 
-        pred = self.forward(batch)
-        losses = self.compute_loss(pred, batch)
+        pred, losses = self.forward(batch)
+        # losses = self.compute_loss(pred, batch)
         metrics = self._compute_metrics(pred, batch)
 
         # Dataset specific handling

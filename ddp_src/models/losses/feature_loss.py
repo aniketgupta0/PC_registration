@@ -258,7 +258,7 @@ class InfoNCELossFull(nn.Module):
         self.r_p = r_p
         self.r_n = r_n
         self.n_sample = 256
-        self.W = torch.nn.Parameter(torch.zeros(d_embed, d_embed), requires_grad=True)
+        self.W = torch.nn.Parameter(torch.zeros(d_embed, d_embed), requires_grad=False)
 
         self.reset_parameters()
 
