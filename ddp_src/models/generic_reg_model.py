@@ -138,7 +138,7 @@ class GenericRegModel(GenericModel, ABC):
             self._save_3DMatch_log(batch, pred)
 
         elif self.cfg.dataset == 'modelnet':
-            if self.cfg.model in ["qk_regtr.RegTR", "qk_regtr_old.RegTR", "qk_regtr_modelnet_lowe.RegTR", "qk_regtr_overlap.RegTR"]:
+            if self.cfg.model in ["qk_regtr.RegTR", "qk_regtr_mha.RegTR", "qk_regtr_old.RegTR", "qk_regtr_modelnet_lowe.RegTR", "qk_regtr_overlap.RegTR"]:
                 modelnet_data = {
                     'points_src': torch.stack(batch['src_xyz']),
                     'points_ref': torch.stack(batch['tgt_xyz']),

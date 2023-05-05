@@ -53,7 +53,7 @@ def get_dataloader(cfg, phase, num_workers=0, num_gpus=1):
     batch_size = cfg[f'{phase}_batch_size']
     shuffle = phase == 'train'
 
-    if cfg.model in ["qk_regtr.RegTR", "qk_regtr_old.RegTR", "qk_regtr_overlap.RegTR", "qk_regtr_overlap_lowe.RegTR"]:
+    if cfg.model in ["qk_regtr.RegTR", "regtr.RegTR", "qk_regtr_mha.RegTR", "qk_regtr_old.RegTR", "qk_regtr_overlap.RegTR", "qk_regtr_overlap_lowe.RegTR"]:
         data_loader = torch.utils.data.DataLoader(
             dataset,
             batch_size=batch_size,
